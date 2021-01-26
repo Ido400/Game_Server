@@ -120,7 +120,7 @@ class ipv4():
         #encapusulation of udp datagrams into ipv4 packets
         ipv4_packet= []
         for i, datagram in enumerate(udp_datagrams):
-            ipv4_ = ipv4_header(4, 5, 128, 17, 0, destination_ip, datagram, 0, 0, 0, i, 0, 0)
+            ipv4_ = ipv4_header(4, 20, 128, 17, 0, destination_ip, datagram, 0, 0, 0, i, 0, 0)
             ipv4_.set_checksum()
             ipv4_.set_length()
             ipv4_packet.append(ipv4_.ipv4_packet)
@@ -163,11 +163,3 @@ class socketSever():
         for packet in packets:
             s.send(packet)
 
-sk = socketSever(5656)
-
-while True:
-    tuple_headers = sk.create_socket_udp_sniffer()
-    if(tuple_headers != None):
-        eth_, ipv4_, udp_packet  = tuple_headers
-        print(eth_.destination_mac)
-        print(int.from_bytes(ipv4_.protocol, byteorder="little"))

@@ -12,10 +12,10 @@ class udp_header():
         self.lenght = length.to_bytes(2, byteorder="little")
         self.checksum = checksum.to_bytes(2, byteorder="little")
         self.data = data
+        self.udp_datagrams = self.source_port + self.destination_port + \
+            self.lenght + self.checksum + self.data
     
-   
-    
-    
+     
 class udp_server():
     def __init__(self, source_port):
        self.source_port = source_port
@@ -35,10 +35,12 @@ class udp_server():
     def recvfrom(self):
         #this function will get the udp packet in spesific port
         sk = socketSever(self.source_port)
-        if(sk.create_socket_udp_sniffer() != None):
-            ethernet_frame_ , ipv4_ , udp_packet = sk.create_socket_udp_sniffer()
-            if(self.descapsulation_udp_datagram(udp_packet) != None):
-                data, destination_port = self.descapsulation_udp_datagram(udp_packet)
+        tuple_header = sk.create_socket_udp_sniffer() 
+        if(tuple_header != None):
+            ethernet_frame_ , ipv4_ , udp_packet = tuple_header
+            tuple_udp = self.descapsulation_udp_datagram(udp_packet)
+            if(tuple_udp != None):
+                data, destination_port = tuple_udp
                 return data, destination_port, ipv4_.destination_ip, ethernet_frame_.source_mac
             
         
@@ -74,3 +76,9 @@ class udp_server():
 
 
 
+udp = udp_server(1234)
+while True:
+    tuple_data = udp.recvfrom()
+    if(tuple_data != None):
+        data, dest_port, dest_ip, mac_source = tuple_data
+        print(hex(data))
