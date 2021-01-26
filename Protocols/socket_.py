@@ -24,7 +24,8 @@ class socket_sniffer():
         #this function will get the ethernet frame
         dest, src, protoype = struct.unpack('! 6s 6s H', raw_data[:14])
         data = raw_data[14:]
-        ethernet_frame_ = ethernet_frame(dest, src, protoype, data)
+        ethernet_frame_ = ethernet_frame(int.from_bytes(dest, byteorder="little"), int.from_bytes(src, byteorder="little") \
+            , protoype, data)
         return ethernet_frame_
     
     def decapsulation_ipv4_header(self, raw_data):
@@ -34,7 +35,8 @@ class socket_sniffer():
         header_length = (version_header_length & 15) * 4
         ttl , proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', raw_data[:20])
         data = raw_data[header_length:]
-        ipv4_ = ipv4(version, header_length, ttl, proto, src, target, data) 
+        ipv4_ = ipv4_header(version, header_length, ttl, proto, int.from_bytes(src, byteorder="little"),\
+            int.from_bytes(target, byteorder="little"), data) 
         return ipv4_
 
     def decapsulation_udp_header(self, raw_data):
@@ -43,10 +45,12 @@ class socket_sniffer():
 
 class ethernet_frame():
     def __init__(self, destination_mac, source_mac, protocol, data):
-        self.destination_mac = destination_mac.to_bytes(6, type="little")
-        self.source_mac = source_mac.to_bytes(6, type="little")
-        self.protocol = protocol.to_bytes(2, type="little")
+        self.destination_mac = (destination_mac).to_bytes(6, byteorder="little")
+        
+        self.source_mac = (source_mac).to_bytes(6, byteorder="little")
+        self.protocol = (protocol).to_bytes(2, byteorder="little")
         self.data = data
+
         self.packet = self.destination_mac + self.source_mac + self.protocol +\
             self.data
     
@@ -60,7 +64,7 @@ class ethernet_frame():
         #this function add the ethenet frame
         packets_list = []
         for packet in ip_packets:
-            eth = ethernet_frame(destination_mac, None, None, packet)
+            eth = ethernet_frame(destination_mac, 0, 0, packet)
             packets_list.append(eth.packet)
         return packets_list
 
@@ -69,36 +73,39 @@ class ethernet_frame():
 
 class ipv4_header():
     def __init__(self, ver, ihl, ttl, protocol, \
-         header_checksum, source_ip, destination_ip, data, \
-              tos=None, len_=None, flags=None, identification=None):
-              self.ver = ver.to_bytes(1, type="little") #protocol version
-              self.ihl = ihl.to_bytes(1, type="little") #header lenght
-              self.tos = tos.to_bytes(1, type="little") #type of service
-              self.len_ = len_.to_bytes(2, type="little") #total lenght
-              self.identification = identification.to_bytes(2, type="little")
-              self.flags = flags.to_bytes(1, type="little") #flags
-              self.ttl = ttl.to_bytes(1, type="little") #time to live
-              self.protocol = protocol.to_bytes(1, type="little") 
-              self.header_checksum = header_checksum.to_bytes(2, type="little")
-              self.source_ip = source_ip.to_bytes(4, type="little")
-              self.destination_ip = destination_ip.to_bytes(4, type="little")
+         source_ip, destination_ip, data, \
+              tos=0, len_=0, flags=0, identification=0, offset=0, header_checksum=0):
+              self.ver = ver #protocol version
+              self.ihl = ihl #header lenght
+              self.tos = (tos).to_bytes(1, byteorder="little") #type of service
+              self.len_ = (len_).to_bytes(2, byteorder="little") #total lenght
+              self.identification = identification.to_bytes(2, byteorder="little")
+              self.flags = flags #flags
+              self.offset = offset #fragmentation offset
+              self.ttl = (ttl).to_bytes(1, byteorder="little") #time to live
+              self.protocol = (protocol).to_bytes(1, byteorder="little") 
+              self.header_checksum = (header_checksum).to_bytes(2, byteorder="little")
+              self.source_ip = (source_ip).to_bytes(4, byteorder="little")
+              self.destination_ip = (destination_ip).to_bytes(4, byteorder="little")
               self.data = data
-              self.ipv4_packet = self.ver + self.ihl + self.tos + self.len_ + self.identification + self.identification + self.flags + \
-                  self.ttl + self.protocol + self.header_checksum + self.source_ip + \
-                      self.destination_ip + self.data
-              self.ipv4_header = self.ver + self.ihl + self.tos + self.len_ + self.identification + self.flags + \
-                  self.ttl + self.protocol + self.header_checksum + self.source_ip + \
-                      self.destination_ip
+             
+              self.ipv4_packet = ((self.ver << 4) + self.ihl).to_bytes(1, byteorder="little") + self.tos + self.len_ + \
+                  self.identification + self.identification + ((self.flags << 13) + self.offset).to_bytes(2,byteorder="little") + \
+                  self.ttl + self.protocol + self.header_checksum + self.source_ip + self.destination_ip + self.data
+              
+              self.ipv4_header = ((self.ver << 4) + self.ihl).to_bytes(1, byteorder="little") + self.tos + self.len_ + \
+                  self.identification + self.identification + ((self.flags << 13) + self.offset).to_bytes(2,byteorder="little") + \
+                  self.ttl + self.protocol + self.header_checksum + self.source_ip + self.destination_ip
 
     def set_ip_host(self):
         #this function will set the public network ip
-        self.source_ip = socket.gethostbyname(socket.gethostname()).to_bytes(4, type="little")
+        self.source_ip = socket.gethostbyname(socket.gethostname()).to_bytes(4, byteorder="little")
     
     def set_ipv4_packet(self):
         #set the packet 
-        self.ipv4_packet = self.ver + self.ihl + self.tos + self.len_ + self.identification + self.identification + self.flags + \
-                  self.ttl + self.protocol + self.header_checksum + self.source_ip + \
-                      self.destination_ip + self.data
+        self.ipv4_packet = ((self.ver << 4) + self.ihl).to_bytes(1, byteorder="little") + self.tos + self.len_ + \
+                  self.identification + self.identification + ((self.flags << 13) + self.offset).to_bytes(2,byteorder="little") + \
+                  self.ttl + self.protocol + self.header_checksum + self.source_ip + self.destination_ip + self.data
 
         
 class ipv4():
@@ -113,7 +120,7 @@ class ipv4():
         #encapusulation of udp datagrams into ipv4 packets
         ipv4_packet= []
         for i, datagram in enumerate(udp_datagrams):
-            ipv4_ = ipv4_header(4, 5, 3, 17, None, None, destination_ip, datagram, 0, None, 0, i)
+            ipv4_ = ipv4_header(4, 5, 128, 17, 0, destination_ip, datagram, 0, 0, 0, i, 0, 0)
             ipv4_.set_checksum()
             ipv4_.set_length()
             ipv4_packet.append(ipv4_.ipv4_packet)
@@ -140,14 +147,27 @@ class socketSever():
         self.port_number = port_number
         # the public network interface
         self.source_ip = socket.gethostbyname(socket.gethostname()) 
+        self.socket_ = socket.socket(socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
 
     def create_socket_udp_sniffer(self):
         sk = socket_sniffer(self.port_number)
-        s = socket.socket(socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
-        return sk.sniff_packets(s)
+        tuple_headers = sk.sniff_packets(self.socket_)
+        if(tuple_headers!= None):
+            eht_, ipv4_, udp_packet = tuple_headers
+            return eht_,ipv4_, udp_packet
+        return None 
     
     def create_socket_send(self, packets):
         s = socket.socket(socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
         #send all the packets
         for packet in packets:
             s.send(packet)
+
+sk = socketSever(5656)
+
+while True:
+    tuple_headers = sk.create_socket_udp_sniffer()
+    if(tuple_headers != None):
+        eth_, ipv4_, udp_packet  = tuple_headers
+        print(eth_.destination_mac)
+        print(int.from_bytes(ipv4_.protocol, byteorder="little"))
